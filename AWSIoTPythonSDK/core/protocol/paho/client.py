@@ -16,6 +16,7 @@
 This is an MQTT v3.1 client module. MQTT is a lightweight pub/sub messaging
 protocol that is easy to implement and suitable for low powered devices.
 """
+import os
 import errno
 import platform
 import random
@@ -770,10 +771,18 @@ class Client(object):
         self._messages_reconnect_reset()
 
         try:
-            if (sys.version_info[0] == 2 and sys.version_info[1] < 7) or (sys.version_info[0] == 3 and sys.version_info[1] < 2):
-                sock = socket.create_connection((self._host, self._port))
+            if os.environ.get('http_proxy', False):
+                import re
+                from .http_proxy_support import http_proxy_connect
+                p = '(?:http.*://)?(?P<host>[^:/ ]+).?(?P<port>[0-9]*).*'
+                m = re.search(p,os.environ['http_proxy'])
+                proxy = (m.group('host'), int(m.group('port')))
+                sock, status, response_code = http_proxy_connect((self._host, self._port), proxy)
             else:
-                sock = socket.create_connection((self._host, self._port), source_address=(self._bind_address, 0))
+                if (sys.version_info[0] == 2 and sys.version_info[1] < 7) or (sys.version_info[0] == 3 and sys.version_info[1] < 2):
+                    sock = socket.create_connection((self._host, self._port))
+                else:
+                    sock = socket.create_connection((self._host, self._port), source_address=(self._bind_address, 0))
         except socket.error as err:
             if err.errno != errno.EINPROGRESS and err.errno != errno.EWOULDBLOCK and err.errno != EAGAIN:
                 raise
